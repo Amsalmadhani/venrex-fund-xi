@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Venrex · Diagnostics</title>
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0f1f5c; color: #fff; padding: 32px; min-height: 100vh; }
+    h1 { font-size: 18px; letter-spacing: 0.15em; margin-bottom: 24px; color: #fff; }
+    .section { background: rgba(255,255,255,0.07); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .section h2 { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 14px; }
+    .check { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; font-size: 12px; line-height: 1.5; }
+    .icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .ok    { color: #4ade80; }
+    .fail  { color: #f87171; }
+    .warn  { color: #fbbf24; }
+    .pending { color: rgba(255,255,255,0.4); }
+    .detail { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 3px; word-break: break-all; }
+    .detail.err { color: #fca5a5; }
+    button { background: #2c5fcf; color: #fff; border: none; padding: 12px 24px; border-radius: 6px; font-family: monospace; font-size: 12px; letter-spacing: 0.08em; cursor: pointer; margin-right: 10px; margin-top: 8px; }
+    button:hover { background: #1a3a8f; }
+    button:disabled { background: rgba(255,255,255,0.1); cursor: not-allowed; color: rgba(255,255,255,0.3); }
+    #log { background: rgba(0,0,0,0.3); border-radius: 6px; padding: 16px; font-size: 11px; line-height: 1.8; max-height: 300px; overflow-y: auto; color: rgba(255,255,255,0.7); white-space: pre-wrap; word-break: break-all; }
+    .tag { display: inline-block; font-size: 9px; padding: 2px 7px; border-radius: 10px; margin-right: 6px; font-weight: bold; }
+    .tag.ok   { background: rgba(74,222,128,0.2); color: #4ade80; }
+    .tag.fail { background: rgba(248,113,113,0.2); color: #f87171; }
+    .tag.info { background: rgba(96,165,250,0.2); color: #93c5fd; }
+  </style>
+</head>
+<body>
+
+<h1>VENREX · DIAGNOSTICS</h1>
+
+<!-- 1. Config -->
+<div class="section">
+  <h2>1 · Configuration</h2>
+  <div id="cfg-checks"></div>
+</div>
+
+<!-- 2. MSAL -->
+<div class="section">
+  <h2>2 · MSAL Library</h2>
+  <div id="msal-checks"></div>
+</div>
+
+<!-- 3. Auth Test -->
+<div class="section">
+  <h2>3 · Authentication Test</h2>
+  <div id="auth-checks"></div>
+  <button id="btn-auth" onclick="testAuth()">Test Sign In</button>
+</div>
+
+<!-- 4. Graph API Test -->
+<div class="section">
+  <h2>4 · Graph API · SharePoint Access</h2>
+  <div id="graph-checks"></div>
+  <button id="btn-graph" onclick="testGraph()" disabled>Test Graph API</button>
+</div>
+
+<!-- 5. File Test -->
+<div class="section">
+  <h2>5 · File Access</h2>
+  <div id="file-checks"></div>
+  <button id="btn-file" onclick="testFile()" disabled>Test File Access</button>
+</div>
+
+<!-- Log -->
+<div class="section">
+  <h2>Console Log</h2>
+  <div id="log">Initialising…\n</div>
+</div>
+
+<script>
+// ── CONFIG (must match index.html exactly) ────────────────────────────────
+const CONFIG = {
+  clientId:   '952bc51f-b689-4de5-aa6a-de3f81f7920a',
+  tenantId:   '5b1d5e33-ed16-4241-b96e-f84150fda02d',
+  tenant:     'venrexcom.sharepoint.com',
+  site:       'Venrex',
+  folderBase: '003 - Funds/016 - XI/008 - CASS Reconciliations',
+  sheetName:  'FUND XI - Daily Data Feed',
+  testFile:   '19 March 2026 - Venrex XI - Daily Reconciliation - COPY FOR AMSAL TESTING'
+};
+
+// ── Logger ────────────────────────────────────────────────────────────────
+function log(msg, type='info') {
+  const el = document.getElementById('log');
+  const tag = `<span class="tag ${type}">${type.toUpperCase()}</span>`;
+  el.innerHTML += tag + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+function check(containerId, icon, label, detail='') {
+  const el = document.getElementById(containerId);
+  el.innerHTML += `<div class="check">
+    <span class="icon">${icon}</span>
+    <div>
+      <div>${label}</div>
+      ${detail ? `<div class="detail ${icon==='❌'?'err':''}">${detail}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── 1. Check Config ───────────────────────────────────────────────────────
+function checkConfig() {
+  const c = document.getElementById('cfg-checks');
+  const checks = [
+    ['clientId',   CONFIG.clientId,   'Client ID'],
+    ['tenantId',   CONFIG.tenantId,   'Tenant ID'],
+    ['tenant',     CONFIG.tenant,     'SharePoint tenant'],
+    ['site',       CONFIG.site,       'SharePoint site'],
+    ['folderBase', CONFIG.folderBase, 'Folder path'],
+    ['sheetName',  CONFIG.sheetName,  'Sheet name'],
+    ['testFile',   CONFIG.testFile,   'Test file name'],
+  ];
+  checks.forEach(([key, val, label]) => {
+    if (val && !val.includes('YOUR_')) {
+      check('cfg-checks', '✅', `${label}: <span style="color:#93c5fd">${val}</span>`);
+    } else {
+      check('cfg-checks', '❌', `${label} is not set`, `Value: "${val}"`);
+    }
+  });
+  check('cfg-checks', '✅', `Redirect URI: <span style="color:#93c5fd">${window.location.origin + window.location.pathname}</span>`);
+}
+
+// ── 2. Check MSAL ─────────────────────────────────────────────────────────
+function checkMsal() {
+  if (typeof msal !== 'undefined' && msal.PublicClientApplication) {
+    check('msal-checks', '✅', 'MSAL library loaded successfully', 'version 2.38.3');
+    log('MSAL library: loaded OK');
+  } else {
+    check('msal-checks', '❌', 'MSAL library FAILED to load', 'Check network / ad blocker');
+    log('MSAL library: FAILED', 'fail');
+  }
+}
+
+// ── 3. Auth ───────────────────────────────────────────────────────────────
+let msalInstance = null;
+let accessToken  = null;
+
+async function initMsal() {
+  try {
+    msalInstance = new msal.PublicClientApplication({
+      auth: {
+        clientId:    CONFIG.clientId,
+        authority:   `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+        redirectUri: window.location.origin + window.location.pathname
+      },
+      cache: { cacheLocation: 'sessionStorage' }
+    });
+    await msalInstance.initialize();
+    log('MSAL instance initialised');
+
+    const result = await msalInstance.handleRedirectPromise();
+    if (result) {
+      msalInstance.setActiveAccount(result.account);
+      log('Redirect result received — account: ' + result.account.username, 'ok');
+      accessToken = result.accessToken;
+      onAuthSuccess(result.account);
+    } else {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0]);
+        log('Cached account found: ' + accounts[0].username, 'ok');
+        check('auth-checks', '✅', 'Already signed in as: ' + accounts[0].username);
+        document.getElementById('btn-auth').textContent = 'Re-test Sign In';
+        await acquireToken();
+      } else {
+        check('auth-checks', '⏳', 'Not signed in — click "Test Sign In" below');
+        log('No cached account — awaiting sign in');
+      }
+    }
+  } catch (e) {
+    check('auth-checks', '❌', 'MSAL initialisation failed', e.message);
+    log('MSAL init error: ' + e.message, 'fail');
+  }
+}
+
+async function testAuth() {
+  log('Starting login redirect…', 'info');
+  try {
+    await msalInstance.loginRedirect({
+      scopes: ['https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All']
+    });
+  } catch (e) {
+    check('auth-checks', '❌', 'Login failed', e.message);
+    log('Login error: ' + e.message, 'fail');
+  }
+}
+
+async function acquireToken() {
+  try {
+    const account = msalInstance.getActiveAccount();
+    const r = await msalInstance.acquireTokenSilent({
+      scopes: ['https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All'],
+      account
+    });
+    accessToken = r.accessToken;
+    check('auth-checks', '✅', 'Token acquired silently', 'Expires: ' + new Date(r.expiresOn).toLocaleTimeString());
+    log('Token acquired: ' + r.accessToken.substring(0,40) + '…', 'ok');
+    onAuthSuccess(account);
+  } catch (e) {
+    check('auth-checks', '⚠️', 'Silent token failed — need interactive login', e.message);
+    log('Silent token error: ' + e.message, 'warn');
+  }
+}
+
+function onAuthSuccess(account) {
+  check('auth-checks', '✅', 'Signed in: ' + account.username);
+  document.getElementById('btn-graph').disabled = false;
+  document.getElementById('btn-auth').textContent = '✓ Signed In';
+}
+
+// ── 4. Graph API ──────────────────────────────────────────────────────────
+async function testGraph() {
+  document.getElementById('btn-graph').disabled = true;
+  log('Testing Graph API…', 'info');
+
+  async function g(path) {
+    const r = await fetch('https://graph.microsoft.com/v1.0' + path, {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    const body = await r.json();
+    if (!r.ok) throw new Error(`${r.status}: ${JSON.stringify(body?.error || body).slice(0,200)}`);
+    return body;
+  }
+
+  // Test 1: /me
+  try {
+    const me = await g('/me');
+    check('graph-checks', '✅', '/me — Graph API reachable', 'User: ' + me.displayName + ' (' + me.userPrincipalName + ')');
+    log('/me: ' + me.displayName, 'ok');
+  } catch(e) {
+    check('graph-checks', '❌', '/me — Graph API unreachable', e.message);
+    log('/me error: ' + e.message, 'fail');
+    document.getElementById('btn-graph').disabled = false;
+    return;
+  }
+
+  // Test 2: Site lookup
+  try {
+    const site = await g(`/sites/${CONFIG.tenant}:/sites/${CONFIG.site}`);
+    check('graph-checks', '✅', 'SharePoint site found', 'Site ID: ' + site.id.split(',')[1]);
+    log('Site: ' + site.displayName + ' | id: ' + site.id, 'ok');
+  } catch(e) {
+    check('graph-checks', '❌', `SharePoint site "${CONFIG.site}" not found`, e.message);
+    log('Site error: ' + e.message, 'fail');
+
+    // Try /me/drives as fallback
+    try {
+      const drives = await g('/me/drives');
+      const names = (drives.value||[]).map(d => d.name + ' — ' + d.webUrl).join('\n');
+      check('graph-checks', '⚠️', 'Fallback: /me/drives accessible', 'Found ' + (drives.value||[]).length + ' drives');
+      log('Fallback drives:\n' + names, 'warn');
+    } catch(e2) {
+      check('graph-checks', '❌', 'Fallback /me/drives also failed', e2.message);
+      log('Drives fallback error: ' + e2.message, 'fail');
+    }
+  }
+
+  // Test 3: Drives
+  try {
+    const site2 = await g(`/sites/${CONFIG.tenant}:/sites/${CONFIG.site}`);
+    const drives = await g(`/sites/${site2.id}/drives`);
+    const doc = (drives.value||[]).find(d => d.name === 'Documents') || drives.value[0];
+    if (doc) {
+      check('graph-checks', '✅', 'Documents library found', 'Drive ID: ' + doc.id);
+      log('Drive: ' + doc.name + ' | id: ' + doc.id, 'ok');
+      window._driveId = doc.id;
+      document.getElementById('btn-file').disabled = false;
+    } else {
+      check('graph-checks', '❌', 'No document library found on site');
+    }
+  } catch(e) {
+    check('graph-checks', '⚠️', 'Could not list drives (may still work)', e.message);
+    log('Drives error: ' + e.message, 'warn');
+  }
+
+  document.getElementById('btn-graph').disabled = false;
+}
+
+// ── 5. File ───────────────────────────────────────────────────────────────
+async function testFile() {
+  document.getElementById('btn-file').disabled = true;
+  log('Testing file access…', 'info');
+
+  async function g(path) {
+    const r = await fetch('https://graph.microsoft.com/v1.0' + path, {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    const body = await r.json();
+    if (!r.ok) throw new Error(`${r.status}: ${JSON.stringify(body?.error || body).slice(0,300)}`);
+    return body;
+  }
+
+  const driveId = window._driveId;
+  if (!driveId) { check('file-checks', '❌', 'No drive ID — run Graph API test first'); return; }
+
+  const now         = new Date();
+  const year        = now.getFullYear();
+  const mm          = String(now.getMonth()+1).padStart(2,'0');
+  const monthName   = now.toLocaleString('en-US', { month: 'long' });
+  const monthFolder = `${mm}. ${monthName} ${year}`;
+  const folderPath  = `${CONFIG.folderBase}/${year}/${monthFolder}`;
+  const encodePath  = p => p.split('/').map(s => encodeURIComponent(s)).join('/');
+
+  log('Looking for folder: ' + folderPath, 'info');
+  check('file-checks', '⏳', 'Folder path: ' + folderPath);
+
+  // Test: folder exists
+  try {
+    const folder = await g(`/drives/${driveId}/root:/${encodePath(folderPath)}`);
+    check('file-checks', '✅', 'Folder found', folder.name + ' — ' + (folder.folder?.childCount ?? '?') + ' items');
+    log('Folder: ' + folder.name, 'ok');
+  } catch(e) {
+    check('file-checks', '❌', 'Folder NOT found', e.message);
+    log('Folder error: ' + e.message, 'fail');
+
+    // Try listing parent to see what folders exist
+    try {
+      const parent = await g(`/drives/${driveId}/root:/${encodePath(CONFIG.folderBase + '/' + year)}:/children`);
+      const names = (parent.value||[]).map(f => f.name).join(', ');
+      check('file-checks', '⚠️', 'Folders in ' + year + ':', names || '(empty)');
+      log('Year folder contents: ' + names, 'warn');
+    } catch(e2) {
+      check('file-checks', '⚠️', 'Could not list year folder either', e2.message);
+    }
+    document.getElementById('btn-file').disabled = false;
+    return;
+  }
+
+  // Test: list files
+  try {
+    const children = await g(`/drives/${driveId}/root:/${encodePath(folderPath)}:/children?$orderby=lastModifiedDateTime%20desc&$top=20`);
+    const xlsxFiles = (children.value||[]).filter(f => f.name.toLowerCase().endsWith('.xlsx') && !f.name.startsWith('~$'));
+    check('file-checks', '✅', `Found ${xlsxFiles.length} .xlsx file(s) in folder`);
+    xlsxFiles.forEach(f => {
+      const isTarget = f.name.toLowerCase().includes(CONFIG.testFile.toLowerCase());
+      check('file-checks', isTarget ? '🎯' : '📄', f.name, 'Modified: ' + new Date(f.lastModifiedDateTime).toLocaleString('en-GB'));
+    });
+    log('Files: ' + xlsxFiles.map(f=>f.name).join(', '), 'ok');
+
+    const target = xlsxFiles.find(f => f.name.toLowerCase().includes(CONFIG.testFile.toLowerCase()));
+    if (!target) {
+      check('file-checks', '❌', 'Test file NOT found in folder', 'Looking for name containing: ' + CONFIG.testFile);
+      log('Test file not found', 'fail');
+      document.getElementById('btn-file').disabled = false;
+      return;
+    }
+
+    // Test: read worksheet
+    check('file-checks', '⏳', 'Reading worksheet: ' + CONFIG.sheetName);
+    log('Reading worksheet…', 'info');
+    try {
+      const sheetEnc = encodeURIComponent(CONFIG.sheetName);
+      const range    = await g(`/drives/${driveId}/items/${target.id}/workbook/worksheets/${sheetEnc}/usedRange`);
+      const rows     = range.values || [];
+      check('file-checks', '✅', 'Worksheet read successfully', `${rows.length} rows × ${(rows[0]||[]).length} columns`);
+      check('file-checks', '📋', 'Headers: ' + (rows[0]||[]).slice(0,8).join(' | '));
+      log('Worksheet: ' + rows.length + ' rows, headers: ' + (rows[0]||[]).join(', '), 'ok');
+
+      // Count statuses
+      if (rows.length > 1) {
+        const statusCol = (rows[0]||[]).findIndex(h => String(h).toLowerCase().includes('status'));
+        if (statusCol >= 0) {
+          const statuses = {};
+          rows.slice(1).forEach(r => {
+            const s = String(r[statusCol]||'').trim();
+            if (s) statuses[s] = (statuses[s]||0) + 1;
+          });
+          check('file-checks', '📊', 'Row counts by Status:', Object.entries(statuses).map(([k,v])=>`${k}: ${v}`).join(' | '));
+          log('Status counts: ' + JSON.stringify(statuses), 'ok');
+        }
+      }
+      check('file-checks', '🎉', 'ALL CHECKS PASSED — app should work!');
+    } catch(e) {
+      check('file-checks', '❌', 'Worksheet read failed', e.message);
+      // List available worksheets
+      try {
+        const sheets = await g(`/drives/${driveId}/items/${target.id}/workbook/worksheets`);
+        const names  = (sheets.value||[]).map(s => '"' + s.name + '"').join(', ');
+        check('file-checks', '⚠️', 'Available worksheets:', names);
+        log('Available sheets: ' + names, 'warn');
+      } catch(e2) {}
+    }
+  } catch(e) {
+    check('file-checks', '❌', 'Failed to list files in folder', e.message);
+    log('File list error: ' + e.message, 'fail');
+  }
+
+  document.getElementById('btn-file').disabled = false;
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+checkConfig();
+checkMsal();
+initMsal();
+</script>
+</body>
+</html>
