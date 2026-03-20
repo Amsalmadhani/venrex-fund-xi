@@ -182,7 +182,7 @@ async function testAuth() {
   log('Starting login redirect…', 'info');
   try {
     await msalInstance.loginRedirect({
-      scopes: ['User.Read', 'offline_access', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All']
+      scopes: ['User.Read', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All']
     });
   } catch (e) {
     check('auth-checks', '❌', 'Login failed', e.message);
@@ -194,7 +194,7 @@ async function acquireToken() {
   try {
     const account = msalInstance.getActiveAccount();
     const r = await msalInstance.acquireTokenSilent({
-      scopes: ['User.Read', 'offline_access', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All'],
+      scopes: ['User.Read', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All'],
       account
     });
     accessToken = r.accessToken;
@@ -227,14 +227,14 @@ async function testGraph() {
     return body;
   }
 
-  // Test 1: /me
+  // Test 1: basic Graph reachability via /me/drive (uses Files.Read.All — already approved)
   try {
-    const me = await g('/me');
-    check('graph-checks', '✅', '/me — Graph API reachable', 'User: ' + me.displayName + ' (' + me.userPrincipalName + ')');
-    log('/me: ' + me.displayName, 'ok');
+    const drive = await g('/me/drive');
+    check('graph-checks', '✅', 'Graph API reachable', 'Personal drive: ' + (drive.name || drive.driveType));
+    log('Graph API OK: ' + JSON.stringify({type: drive.driveType, id: drive.id?.slice(0,20)}), 'ok');
   } catch(e) {
-    check('graph-checks', '❌', '/me — Graph API unreachable', e.message);
-    log('/me error: ' + e.message, 'fail');
+    check('graph-checks', '❌', 'Graph API unreachable', e.message);
+    log('Graph error: ' + e.message, 'fail');
     document.getElementById('btn-graph').disabled = false;
     return;
   }

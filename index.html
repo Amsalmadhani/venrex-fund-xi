@@ -381,7 +381,7 @@ const msalInstance = new msal.PublicClientApplication({
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 });
 
-const SCOPES = ['User.Read', 'offline_access', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All'];
+const SCOPES = ['User.Read', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All'];
 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
