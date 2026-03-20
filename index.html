@@ -381,10 +381,7 @@ const msalInstance = new msal.PublicClientApplication({
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 });
 
-const SCOPES = [
-  'https://graph.microsoft.com/Files.Read.All',
-  'https://graph.microsoft.com/Sites.Read.All'
-];
+const SCOPES = ['User.Read', 'offline_access', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All'];
 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -427,10 +424,15 @@ async function signIn() {
 async function getToken() {
   const account = msalInstance.getActiveAccount();
   try {
-    const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+    const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account, forceRefresh: false });
     return r.accessToken;
-  } catch {
-    await msalInstance.acquireTokenRedirect({ scopes: SCOPES });
+  } catch (e) {
+    // If consent required or token expired, force interactive login
+    if (e.name === 'InteractionRequiredAuthError' || e.errorCode === 'consent_required' || e.errorCode === 'interaction_required') {
+      await msalInstance.acquireTokenRedirect({ scopes: SCOPES, prompt: 'consent' });
+    } else {
+      await msalInstance.acquireTokenRedirect({ scopes: SCOPES });
+    }
   }
 }
 

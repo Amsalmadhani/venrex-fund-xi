@@ -182,7 +182,7 @@ async function testAuth() {
   log('Starting login redirect…', 'info');
   try {
     await msalInstance.loginRedirect({
-      scopes: ['User.Read', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All']
+      scopes: ['User.Read', 'offline_access', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All']
     });
   } catch (e) {
     check('auth-checks', '❌', 'Login failed', e.message);
@@ -194,7 +194,7 @@ async function acquireToken() {
   try {
     const account = msalInstance.getActiveAccount();
     const r = await msalInstance.acquireTokenSilent({
-      scopes: ['User.Read', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All'],
+      scopes: ['User.Read', 'offline_access', 'https://graph.microsoft.com/Files.Read.All', 'https://graph.microsoft.com/Sites.Read.All'],
       account
     });
     accessToken = r.accessToken;
