@@ -534,16 +534,10 @@ async function loadData() {
       : allXlsx.sort((a, b) => new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime))[0];
 
     if (!latestFile) {
-      const names = allXlsx.map(f => '• ' + f.name).join('
-');
+      const names = allXlsx.map(f => f.name).join(', ');
       throw new Error(
         CONFIG.testFile
-          ? 'Test file not found in folder: ' + folderPath + '
-
-Looking for: "' + CONFIG.testFile + '"
-
-Files found:
-' + (names || '(none)')
+          ? 'Test file not found. Looking for: "' + CONFIG.testFile + '". Files in folder: ' + (names || '(none)')
           : 'No .xlsx file found in folder: ' + folderPath
       );
     }
