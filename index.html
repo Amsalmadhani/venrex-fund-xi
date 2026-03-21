@@ -695,7 +695,7 @@ function parseData(rows) {
       investments.push(record);
       // Only add to committed if pipeline amount is meaningfully above 0
       if (pipelineAmt >= 1) {
-        committed.push({ ...record, amtGBP: pipelineAmt, isFollowOn: true });
+        committed.push({ ...record, amtGBP: pipelineAmt, isFollowOn: !isFund, isFundCommit: isFund });
       }
     } else if (status === 'committed') {
       // For new committed deals, use pipeline amount if set, otherwise fund amount
@@ -710,7 +710,7 @@ function parseData(rows) {
   let fundSize = CONFIG.fundSizeGBP || 0;
   let secondCloseDate = '';
 
-  for (let r = 101; r < rows.length; r++) {  // Excel row 100 = array index 101
+  for (let r = 99; r < rows.length; r++) {  // Excel row 100 = array index 99
     const cell = String(rows[r][0] || '').trim().toLowerCase();
     if (cell === 'fund size') {
       fundSize = numVal(rows[r][2] || rows[r][1]);
@@ -847,7 +847,7 @@ function buildPipelineRows(data, bodyId) {
     <tr class="main-row" onclick="toggle(${i},'${bodyId}')">
       <td class="company">
         ${co.name}
-        ${co.isFollowOn ? '<span style="font-size:8px;font-weight:700;letter-spacing:0.08em;background:#e8edf9;color:#2c5fcf;padding:2px 7px;border-radius:10px;margin-left:8px;text-transform:uppercase">Follow On</span>' : ''}
+        ${co.isFollowOn ? '<span style="font-size:8px;font-weight:700;letter-spacing:0.08em;background:#e8edf9;color:#2c5fcf;padding:2px 7px;border-radius:10px;margin-left:8px;text-transform:uppercase">Follow On</span>' : co.isFundCommit ? '<span style="font-size:8px;font-weight:700;letter-spacing:0.08em;background:#f0fdf4;color:#1a7f5a;padding:2px 7px;border-radius:10px;margin-left:8px;text-transform:uppercase">Fund</span>' : ''}
         <span class="chevron" id="chev-${bodyId}-${i}">&#x203A;</span>
       </td>
       <td class="mono">${fmtGBP(co.amtGBP)}</td>
