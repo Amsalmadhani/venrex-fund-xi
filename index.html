@@ -592,6 +592,12 @@ function parseData(rows) {
 
   // ── Find header row (row 0) ───────────────────────────────────────────────
   const headers = rows[0].map(h => String(h || '').toLowerCase().trim());
+
+  // DEBUG — log headers to console so we can see what's coming from Excel
+  console.log('=== HEADERS FROM EXCEL ===');
+  headers.forEach((h, i) => { if (h) console.log(`col ${i}: "${h}"`); });
+  console.log('=== FIRST DATA ROW ===');
+  if (rows[1]) rows[1].forEach((v, i) => { if (v !== '' && v !== null) console.log(`col ${i}: "${v}"`); });
   const col = needle => headers.findIndex(h => h.includes(needle.toLowerCase()));
 
   // ── Column map — matched to actual Excel headers ──────────────────────────
