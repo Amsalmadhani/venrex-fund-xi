@@ -590,14 +590,11 @@ async function loadData() {
 function parseData(rows) {
   if (!rows || rows.length < 2) return { investments: [], committed: [], potential: [], summary: {} };
 
-  // ── Find header row (row 0) ───────────────────────────────────────────────
-  const headers = rows[0].map(h => String(h || '').toLowerCase().trim());
-
-  // DEBUG — log headers to console so we can see what's coming from Excel
-  console.log('=== HEADERS FROM EXCEL ===');
-  headers.forEach((h, i) => { if (h) console.log(`col ${i}: "${h}"`); });
-  console.log('=== FIRST DATA ROW ===');
-  if (rows[1]) rows[1].forEach((v, i) => { if (v !== '' && v !== null) console.log(`col ${i}: "${v}"`); });
+  // ── Find header row ──────────────────────────────────────────────────────
+  // Row 0 is a currency/units row (£ symbols etc) — actual headers are in row 1
+  const headerRowIdx = 1;
+  const dataStartIdx = 2;
+  const headers = rows[headerRowIdx].map(h => String(h || '').toLowerCase().trim());
   const col = needle => headers.findIndex(h => h.includes(needle.toLowerCase()));
 
   // ── Column map — matched to actual Excel headers ──────────────────────────
@@ -655,10 +652,10 @@ function parseData(rows) {
   // ── Parse data rows ───────────────────────────────────────────────────────
   const investments = [], committed = [], potential = [];
 
-  // Stop at row 99 to avoid reading the summary block at row 100
-  const dataEnd = Math.min(rows.length, 99);
+  // Stop at index 101 to avoid reading the summary block (Excel row 100 = array index 101)
+  const dataEnd = Math.min(rows.length, 101);
 
-  for (let r = 1; r < dataEnd; r++) {
+  for (let r = dataStartIdx; r < dataEnd; r++) {
     const row = rows[r];
     const rawName = String(row[cols.name] ?? '').trim();
     if (!rawName || rawName.toLowerCase() === 'fund xi investments') continue;
@@ -711,7 +708,7 @@ function parseData(rows) {
   let fundSize = CONFIG.fundSizeGBP || 0;
   let secondCloseDate = '';
 
-  for (let r = 99; r < rows.length; r++) {
+  for (let r = 101; r < rows.length; r++) {  // Excel row 100 = array index 101
     const cell = String(rows[r][0] || '').trim().toLowerCase();
     if (cell === 'fund size') {
       fundSize = numVal(rows[r][2] || rows[r][1]);
